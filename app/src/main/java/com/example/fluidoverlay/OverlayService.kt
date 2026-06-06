@@ -71,16 +71,16 @@ class OverlayService : Service() {
         }
     }
 
-    private fun batteryDrawable(pct: Int, charging: Boolean) = when {
-        pct == 100 -> R.drawable.ic_battery_full
-        charging   -> R.drawable.ic_battery_charging
-        pct > 85   -> R.drawable.ic_battery_6_bar
-        pct > 71 -> R.drawable.ic_battery_5_bar
-        pct > 57 -> R.drawable.ic_battery_4_bar
-        pct > 42 -> R.drawable.ic_battery_3_bar
-        pct > 28 -> R.drawable.ic_battery_2_bar
-        pct > 14 -> R.drawable.ic_battery_1_bar
-        else     -> R.drawable.ic_battery_0_bar
+    private fun batteryDrawable(pct: Int, charging: Boolean) = when (batteryIcon(pct, charging)) {
+        BatteryIcon.FULL     -> R.drawable.ic_battery_full
+        BatteryIcon.CHARGING -> R.drawable.ic_battery_charging
+        BatteryIcon.BAR_6    -> R.drawable.ic_battery_6_bar
+        BatteryIcon.BAR_5    -> R.drawable.ic_battery_5_bar
+        BatteryIcon.BAR_4    -> R.drawable.ic_battery_4_bar
+        BatteryIcon.BAR_3    -> R.drawable.ic_battery_3_bar
+        BatteryIcon.BAR_2    -> R.drawable.ic_battery_2_bar
+        BatteryIcon.BAR_1    -> R.drawable.ic_battery_1_bar
+        BatteryIcon.BAR_0    -> R.drawable.ic_battery_0_bar
     }
 
     private val clockReceiver = object : BroadcastReceiver() {
@@ -96,8 +96,7 @@ class OverlayService : Service() {
         override fun onReceive(context: Context, intent: Intent) {
             val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
             val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-            if (level < 0 || scale <= 0) return
-            val pct = (level * 100 / scale.toFloat()).toInt()
+            val pct = batteryPct(level, scale) ?: return
             val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
             val charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                     status == BatteryManager.BATTERY_STATUS_FULL
@@ -106,7 +105,7 @@ class OverlayService : Service() {
                 lastPct = pct
                 batteryIcon.setImageResource(batteryDrawable(pct, charging))
             }
-            batteryText.text = "$pct%"
+            batteryText.text = getString(R.string.battery_pct, pct)
         }
     }
 
@@ -142,17 +141,15 @@ class OverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.channel_name),
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = getString(R.string.channel_description)
-                setShowBadge(false)
-            }
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            getString(R.string.channel_name),
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = getString(R.string.channel_description)
+            setShowBadge(false)
         }
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
     private fun buildNotification(): Notification {
@@ -182,7 +179,6 @@ class OverlayService : Service() {
         }
     }
 
-    @Suppress("DEPRECATION")
     private fun setupOverlay() {
         overlayView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null)
         batteryIcon = overlayView.findViewById(R.id.battery_icon)
@@ -190,11 +186,7 @@ class OverlayService : Service() {
         clockText = overlayView.findViewById(R.id.clock)
         updateClock()
 
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+        val type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 
         params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,

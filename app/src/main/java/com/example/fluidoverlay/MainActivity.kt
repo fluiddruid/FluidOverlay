@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.fluidoverlay.ui.theme.FluidOverlayTheme
+import androidx.core.net.toUri
 
 class MainActivity : ComponentActivity() {
     private val serviceRunning = mutableStateOf(OverlayService.isRunning)
@@ -43,9 +44,23 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             FluidOverlayTheme {
+                val context = LocalContext.current
+                var hasPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+                val permissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.StartActivityForResult()
+                ) { hasPermission = Settings.canDrawOverlays(context) }
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     OverlayControls(
                         serviceRunning = serviceRunning,
+                        hasPermission = hasPermission,
+                        onRequestPermission = {
+                            permissionLauncher.launch(
+                                Intent(
+                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    "package:${context.packageName}".toUri()
+                                )
+                            )
+                        },
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
@@ -60,16 +75,14 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun OverlayControls(serviceRunning: MutableState<Boolean>, modifier: Modifier = Modifier) {
+fun OverlayControls(
+    serviceRunning: MutableState<Boolean>,
+    hasPermission: Boolean,
+    onRequestPermission: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
-    var hasPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var serviceRunningState by serviceRunning
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) {
-        hasPermission = Settings.canDrawOverlays(context)
-    }
 
     Column(
         modifier = modifier
@@ -97,14 +110,7 @@ fun OverlayControls(serviceRunning: MutableState<Boolean>, modifier: Modifier = 
                 color = MaterialTheme.colorScheme.error
             )
             Spacer(modifier = Modifier.height(12.dp))
-            Button(onClick = {
-                permissionLauncher.launch(
-                    Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:${context.packageName}")
-                    )
-                )
-            }) {
+            Button(onClick = onRequestPermission) {
                 Text(stringResource(R.string.grant_permission))
             }
         } else if (!serviceRunningState) {

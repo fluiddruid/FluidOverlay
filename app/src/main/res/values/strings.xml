@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">Fluid Overlay</string>
     <string name="battery">Battery</string>
+    <string name="battery_pct">%1$d%%</string>
     <string name="grant_permission">Grant Overlay Permission</string>
     <string name="start_overlay">Start Overlay</string>
     <string name="stop_overlay">Stop Overlay</string>
